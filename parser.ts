@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
 import {TreeCursor} from "lezer-tree";
-import {Expr, Stmt, BinaryOp, Type, TypedVar, VarDefs, Literal, Program, FunDefs, UnaryOp} from "./ast";
+import {Expr, Stmt, BinaryOp, Type, TypedVar, VarDefs, Literal, Program, MethodDefs, UnaryOp, ClassDefs} from "./ast";
 import { stringifyTree } from "./treeprinter";
 
 
@@ -17,18 +17,24 @@ function isVarDecl(c: TreeCursor, s: string) : Boolean {
   return true;
 } 
 
-function isFunDef(c: TreeCursor, s: string) : Boolean {
+function isClassDef(c: TreeCursor, s: string) : Boolean {
+  return c.type.name === "ClassDefinition"
+}
+
+function isMethodDef(c: TreeCursor, s: string) : Boolean {
   return c.type.name === "FunctionDefinition"
 }
 
 export function traverseType(c : TreeCursor, s: string) : Type {
   switch(s.substring(c.from, c.to)) {
     case "int": 
-      return Type.int;
+      return "int";
     case "bool": 
-      return Type.bool;
+      return "bool"
     case "None": 
-      return Type.none;  
+      return "none";
+    default:
+      return {tag: "object", class: s.substring(c.from, c.to)}
   }
 }
 
@@ -55,6 +61,41 @@ export function traverseLiteral(c: TreeCursor, s: string) : Literal<null> {
   }
 }
 
+export function traverseClassDefs(c : TreeCursor, s: string) : ClassDefs<null> {
+  c.firstChild(); // Go to class
+  if (s.substring(c.from, c.to) !== "class") 
+    throw new Error("PARSE ERROR: does not use class keyword")
+  c.nextSibling(); //Go to class name
+  var className = s.substring(c.from, c.to)
+  c.nextSibling(); // Go to argList
+  if (s.substring(c.from, c.to) !== "ArgList")
+    throw new Error("PARSE ERROR : no default object passed during class definition")
+  c.firstChild();
+  c.nextSibling();
+  if (s.substring(c.from, c.to) !== "object")
+    throw new Error("PARSE ERROR : default arg not of type object")
+  c.parent();
+  c.nextSibling(); // Go to Body
+  c.firstChild(); // Go to :
+  c.nextSibling(); // Go inside body
+  
+  const fields : VarDefs<null>[] = [];
+  const methods : MethodDefs<null>[] = [];
+
+  do {
+    if (isVarDecl(c,s)) {
+      fields.push(traverseVarDefs(c,s));
+    } else if (isMethodDef(c,s)) {
+      methods.push(traverseMethodDefs(c,s));
+    } else {
+      throw new Error("PARSE ERROR : Unknown type")
+    }
+  } while (c.nextSibling())
+
+  return {name: className, fields, methods}
+
+}
+
 export function traverseVarDefs(c : TreeCursor, s: string) : VarDefs<null> {
   c.firstChild(); //name
   const {name, type} = traverseTypedVar(c, s);
@@ -65,7 +106,7 @@ export function traverseVarDefs(c : TreeCursor, s: string) : VarDefs<null> {
   return {name, type, literal: init};
 }
 
-export function traverseFunDefs(c : TreeCursor, s: string) : FunDefs<null> {
+export function traverseMethodDefs(c : TreeCursor, s: string) : MethodDefs<null> {
   c.firstChild(); //def
   c.nextSibling();
   const fname = s.substring(c.from, c.to); // function name
@@ -84,7 +125,7 @@ export function traverseFunDefs(c : TreeCursor, s: string) : FunDefs<null> {
   c.parent(); // come out of params
   c.nextSibling(); // typeDef for return type
 
-  var returnType = Type.none
+  var returnType : Type = "none"
   if (c.type.name === "TypeDef") {
     c.firstChild(); // go into return type
     //TODO : double check here if we need a nextSibling call
@@ -103,16 +144,16 @@ export function traverseFunDefs(c : TreeCursor, s: string) : FunDefs<null> {
   do {
     if (isVarDecl(c, s)) {
       varInits.push(traverseVarDefs(c, s));
-    } else if (isFunDef(c, s)) {
-      throw new Error("PARSE ERROR : Nested functions not supported");
+    } else if (isMethodDef(c, s)) {
+      throw new Error("PARSE ERROR : Nested methods not supported");
     } else {
       break;
     }
   } while(c.nextSibling())
 
   do {
-    if (isFunDef(c,s) || isVarDecl(c,s)) {
-      throw new Error("PARSE ERROR : variable and function definitions should be before statments");
+    if (isMethodDef(c,s) || isVarDecl(c,s)) {
+      throw new Error("PARSE ERROR : variable and method definitions should be before statments");
     } 
     bodyStmts.push(traverseStmt(c, s));
   } while(c.nextSibling())
@@ -120,7 +161,7 @@ export function traverseFunDefs(c : TreeCursor, s: string) : FunDefs<null> {
   c.parent(); // pop to body
   c.parent(); // pop to fn def
 
-  if (returnType === Type.none)
+  if (returnType === "none")
     bodyStmts.push({tag : "return", value : {tag : "literal", literal : {tag: "none"}}}) // for empty return 
   
   return {name : fname, params, ret : returnType, body1: varInits, body2 : bodyStmts}
@@ -153,12 +194,35 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         name: s.substring(c.from, c.to)
       }
 
+    case "MemberExpression":
+      c.firstChild()
+      var exp = traverseExpr(c,s)
+      c.nextSibling() // go to .
+      c.nextSibling() // go to property
+      var property = s.substring(c.from, c.to)
+      c.parent()
+      return {tag : "getField", name: property, obj : exp}
+
     case "CallExpression":
       c.firstChild(); // go to name
       const callName = s.substring(c.from, c.to);
+
+      //@ts-ignore
+      if (c.type.name === "MemberExpression") {
+        c.firstChild();
+        var exp = traverseExpr(c,s)
+        c.nextSibling() // go to .
+        c.nextSibling() // go to property
+        var property = s.substring(c.from, c.to)
+        c.parent()
+        c.nextSibling(); // go to arglist
+        var args = traverseArgs(c, s);
+        c.parent();
+        return {tag : "methodCall", lhs : exp, name : property, rhs : args}
+      }
+
       c.nextSibling(); // go to arglist
       var args = traverseArgs(c, s);
-      console.log(args)
 
       if (callName === "abs") {
         if (args.length === 1) {
@@ -285,13 +349,6 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
   }
 }
 
-export function castForUnary() : Expr<null> {
-  return {
-    tag: "literal",
-    literal : {tag: "num", value: Number("0")}
-  }
-}
-
 export function traverseArgs(c: TreeCursor, s: string) : Array<Expr<null>> {
   var args : Array<Expr<null>> = [];
   c.firstChild(); // go into arglist
@@ -309,16 +366,31 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   switch(c.node.type.name) {
     case "AssignStatement":
       c.firstChild(); // go to name
-      const name = s.substring(c.from, c.to);
-      c.nextSibling(); // go to equals
-      c.nextSibling(); // go to value
-      const value = traverseExpr(c, s);
-      c.parent();
-      return {
-        tag: "assign",
-        name: name,
-        value: value
+      const name = c.type.name;
+      if (name === "MemberExpression") {
+        c.firstChild()
+        var lhs = traverseExpr(c,s)
+        c.nextSibling() // go to .
+        var property = s.substring(c.from, c.to)
+        c.parent()
+
+        c.nextSibling(); // go to equals
+        c.nextSibling(); // go to rhs expr
+        const rhs = traverseExpr(c, s);
+        c.parent();
+        return { tag: "setField", name, lhs, rhs}
+      } else {
+        c.nextSibling(); // go to equals
+        c.nextSibling(); // go to value
+        const value = traverseExpr(c, s);
+        c.parent();
+        return {
+          tag: "assign",
+          name: name,
+          value: value 
+        }
       }
+      
     case "ExpressionStatement":
       c.firstChild();
       const expr = traverseExpr(c, s);
@@ -395,36 +467,37 @@ export function traverse(c : TreeCursor, s : string) : Program<null> {
 
   var stmts:Stmt<null>[] = [];
   var varDefs:VarDefs<null>[] = [];
-  var funDefs:FunDefs<null>[] = [];
+  var classDefs:ClassDefs<null>[] = [];
 
   switch(c.node.type.name) {
     case "Script":
       c.firstChild();
-      //Parse vars and fns first
+      //Parse vars and classes first
       do {
         if (isVarDecl(c, s)) {
           varDefs.push(traverseVarDefs(c,s));
-        } else if (isFunDef(c, s)) {
-          funDefs.push(traverseFunDefs(c,s));
+        } else if (isClassDef(c, s)) {
+          classDefs.push(traverseClassDefs(c,s));
         } else {
           break;
         }
         if (c.nextSibling()) {
           continue;
         } else {
-          return {varDefs, funDefs, stmts};
+          return {varDefs, classDefs, stmts};
         }
       } while(true)
 
       // Parse statements next
       do {
-        if (isVarDecl(c, s) || isFunDef(c, s)) {
-          throw new Error("PARSE ERROR : Variable or Function definition encountered while parsing statements");
+        if (isVarDecl(c, s) || isClassDef(c, s)) {
+          throw new Error("PARSE ERROR : Variable or Class definition encountered while parsing statements");
         } else {
           stmts.push(traverseStmt(c,s));
         }
       } while(c.nextSibling())
-      return {varDefs, funDefs, stmts}
+
+      return {varDefs, classDefs, stmts}
     
       default:
         throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
