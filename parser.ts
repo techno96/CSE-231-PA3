@@ -114,12 +114,14 @@ export function traverseMethodDefs(c : TreeCursor, s: string) : MethodDefs<null>
   c.firstChild(); // open paranthesis
   c.nextSibling() // go to either first param or )
   const params : TypedVar<null>[] = [];
+
   do {
     if (c.type.name === ")")
       break;
     //TODO : double check ,  
-    if (c.type.name === ",")
+    if (c.type.name === "," || c.type.name === "self")
       continue;
+
     params.push(traverseTypedVar(c, s));
   } while (c.nextSibling())
   c.parent(); // come out of params
