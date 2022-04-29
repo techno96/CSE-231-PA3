@@ -9,11 +9,14 @@ type LocalEnv = Map<string, boolean>;
 
 type ClassData = {
   vars : Map<string, Type>,
+  varValues : Map<string, Expr<Type>>
   methods : Map<string, [Type[], Type]>
 }
+
 type ClassEnv = {
-  classes : Map<string, ClassData>
+  classes : Map<string, ClassDefs<Type>>
 }
+
 
 export async function run(watSource : string, config: any) : Promise<number> {
   const wabtApi = await wabt();
@@ -27,12 +30,13 @@ export async function run(watSource : string, config: any) : Promise<number> {
 export function compile(source: string) : string {
   let ast = typeCheckProgram(parse(source));
   var emptyEnv = new Map<string, boolean>();
-  var emptyClassEnv = { classes : new Map<string, ClassData>() }
+  var emptyClassEnv: ClassEnv = { classes : new Map<string, ClassDefs<Type>>() }
 
   var varDecls = ast.varDefs.map(v => `(global $${v.name} (mut i32) (i32.const 0))`).join("\n");
   var heapInit = `global $heap (mut i32) (i32.const 4)`
   var varDefs : string[] = codeGenVarDefs(ast.varDefs, emptyEnv);
 
+  ast.classDefs.map(c => emptyClassEnv.classes.set(c.name, c))
   var classesCode : string[] = ast.classDefs.map(c => codeGenClass(c, emptyEnv, emptyClassEnv)).map(c => c.join("\n"));
   classesCode.join("\n\n");
   
@@ -76,15 +80,10 @@ export function compile(source: string) : string {
 
 function codeGenClass(classDef : ClassDefs<Type>, env: LocalEnv, classEnv : ClassEnv) : string[] {
 
-  var fieldsCode : string[] = codeGenFields(classDef.fields, classEnv)
   var methodCode : string[] = classDef.methods.map(m => codeGenMethod(m, env, classEnv, classDef)).map(m => m.join("\n"));
   methodCode.join("\n\n");
 
-  return [...fieldsCode, ...methodCode]
-}
-
-function codeGenFields(fields : VarDefs<Type>[], env: ClassEnv) : string[] {
-
+  return methodCode;
 }
 
 function codeGenVarDefs(varDefs : VarDefs<Type>[], env: LocalEnv) : string[] {
@@ -249,13 +248,13 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
       if (classEnv.classes.has(expr.name)) {
         var initvals:string[] = [];
         const classData = classEnv.classes.get(expr.name)
-        var fieldArray = Array.from(classData.vars.keys())
+        var fieldArray = classData.fields
         fieldArray.forEach((v, index) => {
           var offset = index * 4;
           initvals = [...initvals, 
                       `global.get $heap`, 
                       `(i32.add (i32.const ${offset}))`,
-                      ...codeGenLiteral(v.value),
+                      ...codeGenLiteral(v.literal, locals),
                       `i32.store`
                     ];
 
@@ -282,8 +281,8 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
     case "methodCall":
       const lhs_Exprs = codeGenExpr(expr.lhs, locals, classEnv);
       const rhs_Exprs = expr.rhs.map(e => codeGenExpr(e, locals, classEnv)).flat();
-      
-      break;
+      //@ts-ignore
+      return [...lhs_Exprs, ...rhs_Exprs, `call $${expr.name}$${expr.lhs.a.class}`]
 
     case "getField":
       const objStmts = codeGenExpr(expr.obj, locals, classEnv);
@@ -291,12 +290,18 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
       const classData = classEnv.classes.get(expr.obj.a.class);
       const fieldIndex = getIndexFromMap(classData, expr.name)
       //TODO : Check for Stack 0 and should we use heap here?
-      return [...objStmts, `global.get $heap`,`(i32.add (i32.const ${fieldIndex * 4}))`, `i32.add`, `i32.load`]
+      return [...objStmts,`(i32.add (i32.const ${fieldIndex * 4}))`, `i32.add`, `i32.load`]
   }
-
-
 }
 
-function getIndexFromMap(classData : ClassData, field: string): number {
-  return Array.from(classData.vars.keys()).indexOf(field);
+function getIndexFromMap(classData : ClassDefs<Type>, field: string): number {
+  var fields = classData.fields
+  var i : number = 0
+  for(i = 0; i < fields.length; i++) {
+    if (fields[i].name === field)
+      return i
+  }
+
+  return -1
+
 }

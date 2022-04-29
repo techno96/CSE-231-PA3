@@ -145,7 +145,7 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
 
                 case BinaryOp.Eq:
                 case BinaryOp.Neq:
-                    if (left.a == "int" && right.a == "int" {
+                    if (left.a == "int" && right.a == "int") {
                         // returning bool as we are checking equals 
                         return {...expr, a: "bool", left, right}; 
                     }
