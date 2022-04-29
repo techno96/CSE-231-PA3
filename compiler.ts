@@ -7,12 +7,6 @@ import { typeCheckProgram } from "./typechecker";
 
 type LocalEnv = Map<string, boolean>;
 
-type ClassData = {
-  vars : Map<string, Type>,
-  varValues : Map<string, Expr<Type>>
-  methods : Map<string, [Type[], Type]>
-}
-
 type ClassEnv = {
   classes : Map<string, ClassDefs<Type>>
 }
@@ -57,6 +51,7 @@ export function compile(source: string) : string {
 
   var returnProgram = `
   (module
+    (import "mem" "heap" (memory $0 1))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
@@ -64,7 +59,6 @@ export function compile(source: string) : string {
     (func $max (import "imports" "max") (param i32 i32) (result i32))
     (func $min (import "imports" "min") (param i32 i32) (result i32))
     (func $pow (import "imports" "pow") (param i32 i32) (result i32))
-    (memory $0 1)
     ${varDecls}
     ${heapInit}
     ${classesCode}
@@ -80,10 +74,25 @@ export function compile(source: string) : string {
 
 function codeGenClass(classDef : ClassDefs<Type>, env: LocalEnv, classEnv : ClassEnv) : string[] {
 
+  var containsInit = checkInitPresent(classDef)
   var methodCode : string[] = classDef.methods.map(m => codeGenMethod(m, env, classEnv, classDef)).map(m => m.join("\n"));
+  if (containsInit === false) {
+    methodCode.concat(codeGenInitMethod(classDef))
+  }
   methodCode.join("\n\n");
 
   return methodCode;
+}
+
+function checkInitPresent(classDef : ClassDefs<Type>) : Boolean {
+  var classMethods : MethodDefs<Type>[] = classDef.methods
+  var i = 0
+  for (i = 0; i < classMethods.length; i++) {
+    if (classMethods[i].name === "__init__") {
+      return true;
+    }
+  }
+  return false;
 }
 
 function codeGenVarDefs(varDefs : VarDefs<Type>[], env: LocalEnv) : string[] {
@@ -91,10 +100,19 @@ function codeGenVarDefs(varDefs : VarDefs<Type>[], env: LocalEnv) : string[] {
   varDefs.forEach(v => {
     compiledDefs = [...compiledDefs,...codeGenLiteral(v.literal, env)];
     if(env.has(v.name)) { compiledDefs.push(`(local.set $${v.name})`); }
-    else { compiledDefs.push(`(global.set $${v.name})`); }  
+    else { compiledDefs.push(`(global.set $${v.name})`); }
 
   });
   return compiledDefs;
+}
+
+function codeGenInitMethod(clazz: ClassDefs<Type>) : string[] {
+  var methodName = "__init__"
+  return [`(func $${methodName}$${clazz.name} (param $self i32) (result i32)
+    (local $scratch i32)
+    (local.get $self)
+    (return)
+    (i32.const 0))`];
 }
 
 function codeGenMethod(method : MethodDefs<Type>, locals : LocalEnv, classEnv : ClassEnv, clazz: ClassDefs<Type>) : Array<string> {
@@ -111,11 +129,22 @@ function codeGenMethod(method : MethodDefs<Type>, locals : LocalEnv, classEnv : 
   const stmts = method.body2.map(s => codeGenStmt(s, withParamsAndVariables, classEnv)).flat();
   const stmtsBody = stmts.join("\n");
 
-  return [`(func $${method.name}$${clazz.name} ${params} (result i32)
+  if (method.name === "__init__") {
+    return [`(func $${method.name}$${clazz.name} ${params} (result i32)
+    (local $scratch i32)
+    ${varDefs}
+    ${stmtsBody}
+    (local.get $${method.params[0].name})
+    (return)
+    (i32.const 0))`];
+  } else {
+    return [`(func $${method.name}$${clazz.name} ${params} (result i32)
     (local $scratch i32)
     ${varDefs}
     ${stmtsBody}
     (i32.const 0))`];
+  }
+  
 }
 
 function codeGenStmt(stmt: Stmt<Type>, locals : LocalEnv, classEnv: ClassEnv) : Array<string> {
@@ -290,7 +319,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
       const classData = classEnv.classes.get(expr.obj.a.class);
       const fieldIndex = getIndexFromMap(classData, expr.name)
       //TODO : Check for Stack 0 and should we use heap here?
-      return [...objStmts,`(i32.add (i32.const ${fieldIndex * 4}))`, `i32.add`, `i32.load`]
+      return [...objStmts,`(i32.const ${fieldIndex * 4})`, `i32.add`, `i32.load`]
   }
 }
 
