@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       abs: Math.abs,
       max: Math.max,
       min: Math.min,
-      pow: Math.pow
+      pow: Math.pow,
     },
   };
   const runButton = document.getElementById("run");

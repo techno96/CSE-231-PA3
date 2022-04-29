@@ -60,6 +60,7 @@ export function compile(source: string) : string {
     (func $max (import "imports" "max") (param i32 i32) (result i32))
     (func $min (import "imports" "min") (param i32 i32) (result i32))
     (func $pow (import "imports" "pow") (param i32 i32) (result i32))
+    (memory $0 1)
     ${varDecls}
     ${heapInit}
     ${classesCode}
@@ -290,7 +291,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
       const classData = classEnv.classes.get(expr.obj.a.class);
       const fieldIndex = getIndexFromMap(classData, expr.name)
       //TODO : Check for Stack 0 and should we use heap here?
-      return [...objStmts, `global.get $heap`,`(i32.add (i32.const ${fieldIndex * 4}))`, `i32.load`]
+      return [...objStmts, `global.get $heap`,`(i32.add (i32.const ${fieldIndex * 4}))`, `i32.add`, `i32.load`]
   }
 
 
