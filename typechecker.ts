@@ -13,6 +13,8 @@ type TypeEnv = {
 }
 
 function assignableTo(formal: Type, actual: Type) : Boolean {
+    console.log(formal)
+    console.log(actual)
     if (formal === "int" || formal === "bool" || formal === "none")
         if (formal === actual)
             return true;
@@ -242,12 +244,14 @@ export function typeCheckStmts(stmts: Stmt<null>[], env : TypeEnv, className : s
                     throw new Error("TYPE ERROR: No such class exists")
 
                 var classData = env.classes.get(lhsExpr.a.class)
+                console.log(classData)
+                console.log(stmt.name)
                 if (!classData.vars.has(stmt.name))
                     throw new Error("TYPE ERROR: No such field")
 
-                const rhsExpr = typeCheckExpr(stmt.lhs, env, className);
+                const rhsExpr = typeCheckExpr(stmt.rhs, env, className);
                 //@ts-ignore
-                if (!assignableTo(classData.vars.get(stmt.name).a, rhsExpr.a))
+                if (!assignableTo(classData.vars.get(stmt.name), rhsExpr.a))
                     throw new Error("TYPE ERROR: Incompatible types in setField statement")
                 
                 typedStmts.push({...stmt, a: "none", lhs: lhsExpr, rhs:rhsExpr})
@@ -269,7 +273,7 @@ export function typeCheckStmts(stmts: Stmt<null>[], env : TypeEnv, className : s
                 //@ts-ignore
                 if (stmtType.tag === "object") {
                     //@ts-ignore
-                    if (env.classes.has(stmtType.class) && typExpr.a === "none")
+                    if ((env.classes.has(stmtType.class) && typExpr.a === "none") || assignableTo(stmtType, typExpr.a))
                         typedStmts.push({...stmt, value: typExpr, a: "none"});
                     else {
                         throw new Error("TYPE ERROR: LHS and RHS have incompatible types");
@@ -342,7 +346,11 @@ export function typeCheckMethodDef(method: MethodDefs<null>, typeEnv : TypeEnv, 
 export function typeCheckClassDef(classDef: ClassDefs<null>, env : TypeEnv, classData : ClassData) : ClassDefs<Type> {
 
     const typedFields = typeCheckVarDefs(classDef.fields, env);
-    typedFields.forEach(field => classData.vars.set(field.name, field.type))
+    typedFields.forEach(field => {
+        console.log(field.name)
+        console.log(field.type)
+        classData.vars.set(field.name, field.type)
+    })
 
     var typedMethods:MethodDefs<Type>[] = [];
     env.functions.set(classDef.name, [[], "none"])

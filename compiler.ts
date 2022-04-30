@@ -157,7 +157,7 @@ function codeGenStmt(stmt: Stmt<Type>, locals : LocalEnv, classEnv: ClassEnv) : 
       //@ts-ignore
       const classData = classEnv.classes.get(stmt.lhs.a.class)
       const fieldIndex = getIndexFromMap(classData, stmt.name)
-      return [...lhsStmts, `global.get $heap`, `(i32.add (i32.const ${fieldIndex * 4}))`, ...rhsStmts, `i32.store`]
+      return [...lhsStmts, `(i32.add (i32.const ${fieldIndex * 4}))`, ...rhsStmts, `i32.store`]
 
     case "pass":
       //TODO : Check if anything else needs to be included

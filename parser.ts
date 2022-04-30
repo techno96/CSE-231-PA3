@@ -387,6 +387,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
         c.firstChild()
         var lhs = traverseExpr(c,s)
         c.nextSibling() // go to .
+        c.nextSibling() // go to property
         var property = s.substring(c.from, c.to)
         c.parent()
 
@@ -394,7 +395,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
         c.nextSibling(); // go to rhs expr
         const rhs = traverseExpr(c, s);
         c.parent();
-        return { tag: "setField", name : c.type.name, lhs, rhs}
+        return { tag: "setField", name : property, lhs, rhs}
       } else {
         var variableName = s.substring(c.from, c.to)
         c.nextSibling(); // go to equals
