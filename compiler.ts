@@ -51,10 +51,10 @@ export function compile(source: string) : string {
 
   var returnProgram = `
   (module
-    (import "mem" "heap" (memory $0 1))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
+    (import "js" "memory" (memory 1))
     (func $abs (import "imports" "abs") (param i32) (result i32))
     (func $max (import "imports" "max") (param i32 i32) (result i32))
     (func $min (import "imports" "min") (param i32 i32) (result i32))

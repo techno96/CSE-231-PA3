@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("output").appendChild(elt);
     elt.innerText = arg;
   }
-  var memory = new WebAssembly.Memory({initial:10, maximum:100});
+  var memory = new WebAssembly.Memory({initial:3000, maximum:3000});
   var importObject = {
     imports: {
       print_num: (arg : any) => {
@@ -28,8 +28,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       min: Math.min,
       pow: Math.pow,
     },
-    mem : {
-      heap : memory
+    js : {
+      memory : memory
     }
   };
   const runButton = document.getElementById("run");

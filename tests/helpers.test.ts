@@ -21,14 +21,17 @@ export function typeCheck(source: string) : Type {
 // within another function in your compiler, for example if you need other
 // JavaScript-side helpers
 export async function run(source: string) {
-  var memory = new WebAssembly.Memory({initial:10, maximum:100});
-  var importObject_new : any = importObject;
-  importObject_new.imports.mem = memory;
+  var memory = new WebAssembly.Memory({initial:3000, maximum:3000});
+  var newImportObj = {
+    imports : importObject.imports,
+    js : {memory:memory}
+  }
+
   const watSource = compile(source);
   const wabtApi = await wabt();
   const parsed = wabtApi.parseWat("example", watSource);
   const binary = parsed.toBinary({});
-  const wasmModule = await WebAssembly.instantiate(binary.buffer, importObject_new);
+  const wasmModule = await WebAssembly.instantiate(binary.buffer, newImportObj);
   return (wasmModule.instance.exports as any)._start();
 }
 
