@@ -166,7 +166,13 @@ function codeGenMethod(method : MethodDefs<Type>, locals : LocalEnv, classEnv : 
 function codeGenStmt(stmt: Stmt<Type>, locals : LocalEnv, classEnv: ClassEnv) : Array<string> {
   switch(stmt.tag) {
     case "setField":
-      const lhsStmts = codeGenExpr(stmt.lhs, locals, classEnv);
+      var lhsStmts: string[] = []
+      if (stmt.lhs.tag === "id" && stmt.lhs.name === "self") {
+        lhsStmts = [`local.get $self`]
+      } else {
+        lhsStmts = codeGenExpr(stmt.lhs, locals, classEnv);
+      }
+
       const rhsStmts = codeGenExpr(stmt.rhs, locals, classEnv);
       //@ts-ignore
       const classData = classEnv.classes.get(stmt.lhs.a.class)
