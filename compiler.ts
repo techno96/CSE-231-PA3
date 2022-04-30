@@ -27,7 +27,7 @@ export function compile(source: string) : string {
   var emptyClassEnv: ClassEnv = { classes : new Map<string, ClassDefs<Type>>() }
 
   var varDecls = ast.varDefs.map(v => `(global $${v.name} (mut i32) (i32.const 0))`).join("\n");
-  var heapInit = `global $heap (mut i32) (i32.const 4)`
+  var heapInit = `(global $heap (mut i32) (i32.const 4))`
   var varDefs : string[] = codeGenVarDefs(ast.varDefs, emptyEnv);
 
   ast.classDefs.map(c => emptyClassEnv.classes.set(c.name, c))
@@ -77,10 +77,11 @@ function codeGenClass(classDef : ClassDefs<Type>, env: LocalEnv, classEnv : Clas
   var containsInit = checkInitPresent(classDef)
   var methodCode : string[] = classDef.methods.map(m => codeGenMethod(m, env, classEnv, classDef)).map(m => m.join("\n"));
   if (containsInit === false) {
-    methodCode.concat(codeGenInitMethod(classDef))
+    console.log(codeGenInitMethod(classDef))
+    methodCode = methodCode.concat(codeGenInitMethod(classDef))
   }
   methodCode.join("\n\n");
-
+  console.log(methodCode)
   return methodCode;
 }
 
@@ -103,6 +104,7 @@ function codeGenVarDefs(varDefs : VarDefs<Type>[], env: LocalEnv) : string[] {
     else { compiledDefs.push(`(global.set $${v.name})`); }
 
   });
+  console.log(compiledDefs)
   return compiledDefs;
 }
 
@@ -292,7 +294,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
         return [...initvals, 
           `global.get $heap`, 
           `(global.set $heap (i32.add (global.get $heap) (i32.const ${fieldArray.length * 4})))`,
-          `call $${expr.name + "__init__"}`
+          `call $${"__init__"}$${expr.name}`
         ]
       }
       const valStmts = expr.args.map(e => codeGenExpr(e, locals, classEnv)).flat();

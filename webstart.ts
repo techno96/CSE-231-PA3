@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("output").appendChild(elt);
     elt.innerText = arg;
   }
+  var memory = new WebAssembly.Memory({initial:10, maximum:100});
   var importObject = {
     imports: {
       print_num: (arg : any) => {
@@ -27,6 +28,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       min: Math.min,
       pow: Math.pow,
     },
+    mem : {
+      heap : memory
+    }
   };
   const runButton = document.getElementById("run");
   const userCode = document.getElementById("user-code") as HTMLTextAreaElement;

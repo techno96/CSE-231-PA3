@@ -29,22 +29,22 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
         case "methodCall":
             const lhsExpr = typeCheckExpr(expr.lhs, typeEnv, className);
             if (lhsExpr.a === "int" || lhsExpr.a === "bool" || lhsExpr.a === "none")
-                throw new Error("TYPE ERROR : Non-object type in method call")
+                throw new Error("TYPE ERROR: Non-object type in method call")
             if (!typeEnv.classes.has(lhsExpr.a.class))
-                throw new Error("TYPE ERROR : No such class exists")
+                throw new Error("TYPE ERROR: No such class exists")
 
             var classData = typeEnv.classes.get(lhsExpr.a.class)
             if (!classData.methods.has(expr.name))
-                throw new Error("TYPE ERROR : No such method")
+                throw new Error("TYPE ERROR: No such method")
             
             const rhsExpr = expr.rhs.map(a => typeCheckExpr(a, typeEnv, className));
             const [argTyps, retType] = classData.methods.get(expr.name)
             if (argTyps.length !== rhsExpr.length)
-                throw new Error("TYPE ERROR : Argument length mismatch")
+                throw new Error("TYPE ERROR: Argument length mismatch")
 
             argTyps.forEach((t,i) => {
                 if (!assignableTo(t, rhsExpr[i].a))
-                    throw new Error("TYPE ERROR : Mismatched Arg types")
+                    throw new Error("TYPE ERROR: Mismatched Arg types")
 
             });
             return {...expr, lhs: lhsExpr, rhs: rhsExpr, a: retType}
@@ -52,20 +52,20 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
         case "getField":
             const objExpr = typeCheckExpr(expr.obj, typeEnv, className);
             if (objExpr.a === "int" || objExpr.a === "bool" || objExpr.a === "none")
-                throw new Error("TYPE ERROR : Non-object type in getField call")
+                throw new Error("TYPE ERROR: Non-object type in getField call")
             if (!typeEnv.classes.has(objExpr.a.class))
-                throw new Error("TYPE ERROR : No such class exists")
+                throw new Error("TYPE ERROR: No such class exists")
 
             var classData = typeEnv.classes.get(objExpr.a.class)
             if (!classData.vars.has(expr.name))
-                throw new Error("TYPE ERROR : No such field")
+                throw new Error("TYPE ERROR: No such field")
 
-            return {...expr, a: classData.vars.get(expr.name)}
+            return {...expr, obj : objExpr, a: classData.vars.get(expr.name)}
             
         case "call":
             if (expr.name === "print") {
                 if (expr.args.length !== 1) { 
-                    throw new Error("print expects a single argument"); 
+                    throw new Error("TYPE ERROR: print expects a single argument"); 
                 }
                 const newArgs = [typeCheckExpr(expr.args[0], typeEnv, className)];
                 const res : Expr<Type> = {...expr, a: "none", args: newArgs };
@@ -73,17 +73,17 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
             }
 
             if (!typeEnv.functions.has(expr.name)) {
-                throw new Error(`function ${expr.name} not found`);
+                throw new Error(`TYPE ERROR: function ${expr.name} not found`);
             }
             
             const [args, ret] = typeEnv.functions.get(expr.name);
             if (args.length !== expr.args.length) {
-                throw new Error(`Expected ${args.length} arguments but got ${expr.args.length}`);
+                throw new Error(`TYPE ERROR: Expected ${args.length} arguments but got ${expr.args.length}`);
             }
             
             const newArgs = args.map((a, i) => {
                 const argtyp = typeCheckExpr(expr.args[i], typeEnv, className);
-                if(a !== argtyp.a) { throw new Error(`Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
+                if(a !== argtyp.a) { throw new Error(`TYPE ERROR: Got ${argtyp} as argument ${i + 1}, expected ${a}`); }
                 return argtyp
               });
         
@@ -97,10 +97,10 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
             if (expr.name === "self" && className !== null && className !== "") {
                 return {...expr, a: {tag: "object", class: className}};
             } else if (expr.name === "self") {
-                throw new Error("TYPE ERROR : Self usage outside class")
+                throw new Error("TYPE ERROR: Self usage outside class")
             }
             if (!typeEnv.vars.has(expr.name)) {
-                throw new Error("TYPE ERROR : unbound id");
+                throw new Error("TYPE ERROR: unbound id");
             }
             const idType = typeEnv.vars.get(expr.name);
             return {...expr, a:idType};
@@ -109,14 +109,14 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
             const arg1 = typeCheckExpr(expr.arg1, typeEnv, className);
             const arg2 = typeCheckExpr(expr.arg2, typeEnv, className);
             if (arg1.a !== "int" && arg2.a !== "int") {
-                throw new Error("TYPE ERROR : Expression does not evaluate to int");
+                throw new Error("TYPE ERROR: Expression does not evaluate to int");
             }
             return {...expr, a: "int", arg1, arg2}; 
 
         case "builtin1":
             const arg = typeCheckExpr(expr.arg, typeEnv, className);
             if (arg.a !== "int") {
-                throw new Error("TYPE ERROR : Expression does not evaluate to int");
+                throw new Error("TYPE ERROR: Expression does not evaluate to int");
             }
             return {...expr, a: "int", arg}; 
         
@@ -130,7 +130,7 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
                 case BinaryOp.D_slash:
                 case BinaryOp.Mod:
                     if (left.a !== "int" && right.a !== "int") {
-                        throw new Error("TYPE ERROR : Expression does not evaluate to int");
+                        throw new Error("TYPE ERROR: Expression does not evaluate to int");
                     }
                     return {...expr, a: "int", left, right}; 
                 
@@ -139,7 +139,7 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
                 case BinaryOp.Gt:
                 case BinaryOp.Lt:    
                     if (left.a !== "int" && right.a !== "int") {
-                        throw new Error("TYPE ERROR : Expression does not evaluate to int");
+                        throw new Error("TYPE ERROR: Expression does not evaluate to int");
                     }
                     return {...expr, a: "bool", left, right}; 
 
@@ -155,7 +155,7 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
                     }
 
                     // Do we have to handle None also here ?
-                    throw new Error("TYPE ERROR : LHS and RHS do not evaluate to the same types");
+                    throw new Error("TYPE ERROR: LHS and RHS do not evaluate to the same types");
 
                 case BinaryOp.Is:
                     //check none and return boolean
@@ -163,7 +163,7 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
                         return {...expr, a: "bool"}; 
                     } 
 
-                    throw new Error("TYPE ERROR : Incompatible types using Is operator");
+                    throw new Error("TYPE ERROR: Incompatible types using Is operator");
 
                 default:
                     throw new Error(`Unhandled op`)
@@ -174,19 +174,19 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
             switch(expr.op) {
                 case UnaryOp.Not:
                     if (rt.a !== "bool") {
-                        throw new Error("TypeError : Expression does not evaluate to bool");
+                        throw new Error("TYPE ERROR: Expression does not evaluate to bool");
                     } 
                     return {...expr, a: "bool", right:rt};
                 case UnaryOp.U_Minus:
                 case UnaryOp.U_Plus:
                     if (rt.a !== "int") {
-                        throw new Error("TypeError : Expression does not evaluate to int");
+                        throw new Error("TYPE ERROR: Expression does not evaluate to int");
                     } 
                     return {...expr, a: "int", right:rt};
             }
 
         default:
-            throw new Error("Undefined expression type");
+            throw new Error("TYPE ERROR: Undefined expression type");
     }
 }
 
@@ -208,10 +208,10 @@ export function typeCheckVarDefs(defs: VarDefs<null>[], typeEnv: TypeEnv) : VarD
         const typedDef = typeCheckLiteral(def.literal);
         if (def.type !== "int" && def.type !== "bool" && def.type !== "none") {
             if (!(def.type.tag === "object" && typeEnv.classes.has(def.type.class) && typedDef.a === "none")) {
-                throw new Error("TypeError : Object definition does not have consistent types");
+                throw new Error("TYPE ERROR: Object definition does not have consistent types");
             }
         } else if (typedDef.a !== def.type) {
-            throw new Error("TypeError : Variable definition does not have consistent types");
+            throw new Error("TYPE ERROR: Variable definition does not have consistent types");
         }
         typedVarDefs.push({...def, a: def.type, literal : typedDef});
         typeEnv.vars.set(def.name, def.type);
@@ -237,18 +237,18 @@ export function typeCheckStmts(stmts: Stmt<null>[], env : TypeEnv, className : s
             case "setField":
                 const lhsExpr = typeCheckExpr(stmt.lhs, env, className);
                 if (lhsExpr.a === "int" || lhsExpr.a === "bool" || lhsExpr.a === "none")
-                    throw new Error("TYPE ERROR : Non-object type in getField call")
+                    throw new Error("TYPE ERROR: Non-object type in getField call")
                 if (!env.classes.has(lhsExpr.a.class))
-                    throw new Error("TYPE ERROR : No such class exists")
+                    throw new Error("TYPE ERROR: No such class exists")
 
                 var classData = env.classes.get(lhsExpr.a.class)
                 if (!classData.vars.has(stmt.name))
-                    throw new Error("TYPE ERROR : No such field")
+                    throw new Error("TYPE ERROR: No such field")
 
                 const rhsExpr = typeCheckExpr(stmt.lhs, env, className);
                 //@ts-ignore
                 if (!assignableTo(classData.vars.get(stmt.name).a, rhsExpr.a))
-                    throw new Error("TYPE ERROR : Incompatible types in setField statement")
+                    throw new Error("TYPE ERROR: Incompatible types in setField statement")
                 
                 typedStmts.push({...stmt, a: "none", lhs: lhsExpr, rhs:rhsExpr})
                 break;
@@ -260,17 +260,31 @@ export function typeCheckStmts(stmts: Stmt<null>[], env : TypeEnv, className : s
                 typedStmts.push({...stmt, a: "none"});
                 break;
             case "assign":
+                console.log(stmt.name)
                 if (!env.vars.has(stmt.name)) 
-                    throw new Error("TYPE ERROR : unbound id");
+                    throw new Error("TYPE ERROR: unbound id");
                 const typExpr = typeCheckExpr(stmt.value, env, className);
-                if (typExpr.a !== env.vars.get(stmt.name))
-                    throw new Error("TYPE ERROR : LHS and RHS have incompatible types");
-                typedStmts.push({...stmt, value: typExpr, a: "none"});
+
+                var stmtType = env.vars.get(stmt.name)
+                //@ts-ignore
+                if (stmtType.tag === "object") {
+                    //@ts-ignore
+                    if (env.classes.has(stmtType.class) && typExpr.a === "none")
+                        typedStmts.push({...stmt, value: typExpr, a: "none"});
+                    else {
+                        throw new Error("TYPE ERROR: LHS and RHS have incompatible types");
+                    }
+                } else if (typExpr.a !== env.vars.get(stmt.name)) {
+                    throw new Error("TYPE ERROR: LHS and RHS have incompatible types");
+                } else {
+                    typedStmts.push({...stmt, value: typExpr, a: "none"});
+                }
+                
                 break;
             case "return":
                 const newExpr = typeCheckExpr(stmt.value, env, className);
                 if (newExpr.a !== env.retType) {
-                    throw new Error(`${newExpr} returned but ${env.retType} expected.`);
+                    throw new Error(`TYPE ERROR: ${newExpr} returned but ${env.retType} expected.`);
                 }
                 typedStmts.push({...stmt, value: newExpr, a: "none"});
                 break;
@@ -278,7 +292,7 @@ export function typeCheckStmts(stmts: Stmt<null>[], env : TypeEnv, className : s
             case "ifElse":
                 const cond = typeCheckExpr(stmt.cond, env, className);
                 if (cond.a !== "bool") {
-                    throw new Error('Condition should evaluate to a boolean')
+                    throw new Error('TYPE ERROR: Condition should evaluate to a boolean')
                 }
                 const typedThenStmts = typeCheckStmts(stmt.then, env, className);
                 const typedElseStmts = typeCheckStmts(stmt.else, env, className);
@@ -288,14 +302,14 @@ export function typeCheckStmts(stmts: Stmt<null>[], env : TypeEnv, className : s
             case "while":
                 const condition = typeCheckExpr(stmt.cond, env, className);
                 if (condition.a !== "bool") {
-                    throw new Error('Condition should evaluate to a boolean')
+                    throw new Error('TYPE ERROR: Condition should evaluate to a boolean')
                 }
                 const typedLoopStmts = typeCheckStmts(stmt.then, env, className);
                 typedStmts.push({...stmt, cond: condition, then: typedLoopStmts});
                 break;
 
             default:
-                throw new Error("TYPE ERROR : Unknown statement type");
+                throw new Error("TYPE ERROR: Unknown statement type");
         }
     })
     return typedStmts;
@@ -331,6 +345,7 @@ export function typeCheckClassDef(classDef: ClassDefs<null>, env : TypeEnv, clas
     typedFields.forEach(field => classData.vars.set(field.name, field.type))
 
     var typedMethods:MethodDefs<Type>[] = [];
+    env.functions.set(classDef.name, [[], "none"])
     classDef.methods.forEach(m => {
         const typedMethod = typeCheckMethodDef(m, env, classData, classDef.name)
         typedMethods.push(typedMethod);
@@ -358,6 +373,8 @@ export function typeCheckProgram(prgm : Program<null>) : Program<Type> {
     var varDefs:VarDefs<Type>[] = typeCheckVarDefs(prgm.varDefs, env);
     varDefs.forEach(def => {
         env.vars.set(def.name, def.type);
+        console.log(def.name)
+        console.log(def.type)
     })
 
     var classDefs:ClassDefs<Type>[] = [];

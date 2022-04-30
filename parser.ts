@@ -11,6 +11,7 @@ function isVarDecl(c: TreeCursor, s: string) : Boolean {
   c.nextSibling();
   const name = c.type.name;
   c.parent();
+  console.log(name)
   // @ts-ignore
   if (name !== "TypeDef")
     return false;
@@ -39,6 +40,7 @@ export function traverseType(c : TreeCursor, s: string) : Type {
 }
 
 export function traverseTypedVar(c : TreeCursor, s: string) : TypedVar<null> {
+  console.log("hello1")
   const name = s.substring(c.from, c.to);
   c.nextSibling(); // TypeDef parse
   c.firstChild(); // :
@@ -68,7 +70,8 @@ export function traverseClassDefs(c : TreeCursor, s: string) : ClassDefs<null> {
   c.nextSibling(); //Go to class name
   var className = s.substring(c.from, c.to)
   c.nextSibling(); // Go to argList
-  if (s.substring(c.from, c.to) !== "ArgList")
+  console.log(s.substring(c.from, c.to))
+  if (c.type.name !== "ArgList")
     throw new Error("PARSE ERROR : no default object passed during class definition")
   c.firstChild();
   c.nextSibling();
@@ -91,6 +94,9 @@ export function traverseClassDefs(c : TreeCursor, s: string) : ClassDefs<null> {
       throw new Error("PARSE ERROR : Unknown type")
     }
   } while (c.nextSibling())
+  c.parent() // back to Body
+  c.parent() //back to ClassDefinition
+  console.log(c.type.name)
 
   return {name: className, fields, methods}
 
@@ -98,6 +104,7 @@ export function traverseClassDefs(c : TreeCursor, s: string) : ClassDefs<null> {
 
 export function traverseVarDefs(c : TreeCursor, s: string) : VarDefs<null> {
   c.firstChild(); //name
+  console.log(s.substring(c.from, c.to))
   const {name, type} = traverseTypedVar(c, s);
   c.nextSibling(); //AssignOp
   c.nextSibling(); //value
@@ -113,17 +120,22 @@ export function traverseMethodDefs(c : TreeCursor, s: string) : MethodDefs<null>
   c.nextSibling(); // Param List
   c.firstChild(); // open paranthesis
   c.nextSibling() // go to either first param or )
+  
   const params : TypedVar<null>[] = [];
-
   do {
+    
     if (c.type.name === ")")
       break;
     //TODO : double check ,  
-    if (c.type.name === "," || c.type.name === "self")
+    if (c.type.name === ",")
+      continue;
+
+    if (s.substring(c.from, c.to) === "self")
       continue;
 
     params.push(traverseTypedVar(c, s));
   } while (c.nextSibling())
+  
   c.parent(); // come out of params
   c.nextSibling(); // typeDef for return type
 
@@ -208,6 +220,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
     case "CallExpression":
       c.firstChild(); // go to name
       const callName = s.substring(c.from, c.to);
+      console.log(c.type.name)
 
       //@ts-ignore
       if (c.type.name === "MemberExpression") {
@@ -220,6 +233,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         c.nextSibling(); // go to arglist
         var args = traverseArgs(c, s);
         c.parent();
+        console.log(c.type.name)
         return {tag : "methodCall", lhs : exp, name : property, rhs : args}
       }
 
@@ -365,11 +379,11 @@ export function traverseArgs(c: TreeCursor, s: string) : Array<Expr<null>> {
 }
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
+  console.log(c.node.type.name)
   switch(c.node.type.name) {
     case "AssignStatement":
       c.firstChild(); // go to name
-      const name = c.type.name;
-      if (name === "MemberExpression") {
+      if (c.type.name === "MemberExpression") {
         c.firstChild()
         var lhs = traverseExpr(c,s)
         c.nextSibling() // go to .
@@ -380,15 +394,16 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
         c.nextSibling(); // go to rhs expr
         const rhs = traverseExpr(c, s);
         c.parent();
-        return { tag: "setField", name, lhs, rhs}
+        return { tag: "setField", name : c.type.name, lhs, rhs}
       } else {
+        var variableName = s.substring(c.from, c.to)
         c.nextSibling(); // go to equals
         c.nextSibling(); // go to value
         const value = traverseExpr(c, s);
         c.parent();
         return {
           tag: "assign",
-          name: name,
+          name: variableName,
           value: value 
         }
       }

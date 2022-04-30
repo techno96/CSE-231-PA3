@@ -1,7 +1,18 @@
+import { none } from "binaryen";
+import { parse } from "../parser";
+import { typeCheckProgram } from "../typechecker";
 import { importObject } from "./import-object.test";
+import wabt from "wabt";
+import { compile } from "../compiler";
 
 // Modify typeCheck to return a `Type` as we have specified below
 export function typeCheck(source: string) : Type {
+  const program = typeCheckProgram(parse(source))
+  var return_type : Type = "none";
+  var length : number = program.stmts.length;
+  if (length > 0) {
+    return_type = program.stmts[length - 1].a
+  }
   return "none";
 }
 
@@ -10,7 +21,15 @@ export function typeCheck(source: string) : Type {
 // within another function in your compiler, for example if you need other
 // JavaScript-side helpers
 export async function run(source: string) {
-  return;
+  var memory = new WebAssembly.Memory({initial:10, maximum:100});
+  var importObject_new : any = importObject;
+  importObject_new.imports.mem = memory;
+  const watSource = compile(source);
+  const wabtApi = await wabt();
+  const parsed = wabtApi.parseWat("example", watSource);
+  const binary = parsed.toBinary({});
+  const wasmModule = await WebAssembly.instantiate(binary.buffer, importObject_new);
+  return (wasmModule.instance.exports as any)._start();
 }
 
 type Type =
