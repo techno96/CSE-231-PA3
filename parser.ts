@@ -130,8 +130,11 @@ export function traverseMethodDefs(c : TreeCursor, s: string) : MethodDefs<null>
     if (c.type.name === ",")
       continue;
 
-    if (s.substring(c.from, c.to) === "self")
+    if (s.substring(c.from, c.to) === "self") {
+      c.nextSibling() // skip :
+      c.nextSibling() // skip the class type for self
       continue;
+    }
 
     params.push(traverseTypedVar(c, s));
   } while (c.nextSibling())

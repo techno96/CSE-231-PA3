@@ -325,6 +325,7 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
       return [...lhs_Exprs, ...rhs_Exprs, `call $${expr.name}$${expr.lhs.a.class}`]
 
     case "getField":
+      console.log(expr)
       const objStmts = codeGenExpr(expr.obj, locals, classEnv);
       //@ts-ignore
       const classData = classEnv.classes.get(expr.obj.a.class);

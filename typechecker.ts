@@ -52,7 +52,9 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
             return {...expr, lhs: lhsExpr, rhs: rhsExpr, a: retType}
 
         case "getField":
+            console.log(expr)
             const objExpr = typeCheckExpr(expr.obj, typeEnv, className);
+            console.log(objExpr)
             if (objExpr.a === "int" || objExpr.a === "bool" || objExpr.a === "none")
                 throw new Error("TYPE ERROR: Non-object type in getField call")
             if (!typeEnv.classes.has(objExpr.a.class))
@@ -347,15 +349,15 @@ export function typeCheckClassDef(classDef: ClassDefs<null>, env : TypeEnv, clas
 
     const typedFields = typeCheckVarDefs(classDef.fields, env);
     typedFields.forEach(field => {
-        console.log(field.name)
-        console.log(field.type)
         classData.vars.set(field.name, field.type)
     })
+    env.classes.set(classDef.name, classData)
 
     var typedMethods:MethodDefs<Type>[] = [];
     env.functions.set(classDef.name, [[], "none"])
     classDef.methods.forEach(m => {
         const typedMethod = typeCheckMethodDef(m, env, classData, classDef.name)
+        classData.methods.set(m.name, [typedMethod.params.map(param => param.type), m.ret])
         typedMethods.push(typedMethod);
     });
 
@@ -375,7 +377,8 @@ export function typeCheckProgram(prgm : Program<null>) : Program<Type> {
     var env = createNewEnv();
 
     prgm.classDefs.forEach(c => {
-        env.classes.set(c.name, null);
+        var newClassData : ClassData = {vars : new Map<string, Type>(), methods: new Map<string, [Type[], Type]>()}
+        env.classes.set(c.name, newClassData);
     });
 
     var varDefs:VarDefs<Type>[] = typeCheckVarDefs(prgm.varDefs, env);
