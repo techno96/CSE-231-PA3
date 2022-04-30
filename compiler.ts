@@ -31,8 +31,13 @@ export function compile(source: string) : string {
   var varDefs : string[] = codeGenVarDefs(ast.varDefs, emptyEnv);
 
   ast.classDefs.map(c => emptyClassEnv.classes.set(c.name, c))
-  var classesCode : string[] = ast.classDefs.map(c => codeGenClass(c, emptyEnv, emptyClassEnv)).map(c => c.join("\n"));
-  classesCode.join("\n\n");
+  var classesCode : string[] = []
+
+  ast.classDefs.map(c => {
+    classesCode = [...classesCode, ...codeGenClass(c, emptyEnv, emptyClassEnv)]
+  })
+
+  var classesFinalCode = classesCode.join("\n")
   
   var allStmts = ast.stmts.map(s => codeGenStmt(s, emptyEnv, emptyClassEnv)).flat();
   var main = [`(local $scratch i32)`, ...varDefs, ...allStmts].join("\n"); 
@@ -61,7 +66,7 @@ export function compile(source: string) : string {
     (func $pow (import "imports" "pow") (param i32 i32) (result i32))
     ${varDecls}
     ${heapInit}
-    ${classesCode}
+    ${classesFinalCode}
     (func (export "_start") ${retType}
       ${main}
       ${retVal}
@@ -75,11 +80,15 @@ export function compile(source: string) : string {
 function codeGenClass(classDef : ClassDefs<Type>, env: LocalEnv, classEnv : ClassEnv) : string[] {
 
   var containsInit = checkInitPresent(classDef)
-  var methodCode : string[] = classDef.methods.map(m => codeGenMethod(m, env, classEnv, classDef)).map(m => m.join("\n"));
+  var methodCode : string[] = []
+  classDef.methods.map(m => {
+    methodCode = [...methodCode, ...codeGenMethod(m, env, classEnv, classDef)]
+  })
+
   if (containsInit === false) {
-    console.log(codeGenInitMethod(classDef))
-    methodCode = methodCode.concat(codeGenInitMethod(classDef))
+    methodCode = [...methodCode, ...codeGenInitMethod(classDef)]
   }
+
   methodCode.join("\n\n");
   console.log(methodCode)
   return methodCode;
