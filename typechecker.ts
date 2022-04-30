@@ -195,7 +195,12 @@ export function typeCheckExpr(expr : Expr<null>, typeEnv : TypeEnv, className : 
 }
 
 function validIsType(type : Type) : Boolean {
-    return type === "none";
+    if (type === "none") {
+        return true;
+    } else if (type !== "int" && type !== "bool") {
+        return true;
+    }
+    return false;
 }
 
 export function typeCheckLiteral(literal : Literal<null>) : Literal<Type> {

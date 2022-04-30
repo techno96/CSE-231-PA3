@@ -131,7 +131,12 @@ function codeGenMethod(method : MethodDefs<Type>, locals : LocalEnv, classEnv : 
 
   const withParamsAndVariables = new Map<string, boolean>(locals.entries());
   method.params.forEach(p => withParamsAndVariables.set(p.name, true));
-  const params = method.params.map(p => `(param $${p.name} i32)`).join(" ");
+  var params: string[] = []
+  params = [...params, `(param $self i32)`]
+  method.params.map(p => {
+    params = [...params, `(param $${p.name} i32)`]
+  })
+  var finalParamsString = params.join(' ')
 
   const varDecls = method.body1.map(v => `(local $${v.name} i32)`).join("\n");
   method.body1.forEach(v => withParamsAndVariables.set(v.name, true));
@@ -141,7 +146,7 @@ function codeGenMethod(method : MethodDefs<Type>, locals : LocalEnv, classEnv : 
   const stmtsBody = stmts.join("\n");
 
   if (method.name === "__init__") {
-    return [`(func $${method.name}$${clazz.name} ${params} (result i32)
+    return [`(func $${method.name}$${clazz.name} ${finalParamsString} (result i32)
     (local $scratch i32)
     ${varDefs}
     ${stmtsBody}
@@ -149,7 +154,7 @@ function codeGenMethod(method : MethodDefs<Type>, locals : LocalEnv, classEnv : 
     (return)
     (i32.const 0))`];
   } else {
-    return [`(func $${method.name}$${clazz.name} ${params} (result i32)
+    return [`(func $${method.name}$${clazz.name} ${finalParamsString} (result i32)
     (local $scratch i32)
     ${varDefs}
     ${stmtsBody}
@@ -325,8 +330,13 @@ export function codeGenExpr(expr : Expr<Type>, locals : LocalEnv, classEnv: Clas
       return [...lhs_Exprs, ...rhs_Exprs, `call $${expr.name}$${expr.lhs.a.class}`]
 
     case "getField":
-      console.log(expr)
-      const objStmts = codeGenExpr(expr.obj, locals, classEnv);
+      var objStmts: string[] = []
+      if (expr.obj.tag === "id" && expr.obj.name === "self") {
+        objStmts = [`local.get $self`]
+      } else {
+        objStmts = codeGenExpr(expr.obj, locals, classEnv);
+      }
+      
       //@ts-ignore
       const classData = classEnv.classes.get(expr.obj.a.class);
       const fieldIndex = getIndexFromMap(classData, expr.name)
